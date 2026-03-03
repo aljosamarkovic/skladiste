@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upravljanje Skladištem</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117; --surface: #181c27; --surface2: #1e2335; --border: #2a2f45;
+    --accent: #f5a623; --green: #2ecc87; --red: #e84545; --blue: #4a9eff;
+    --text: #e8eaf0; --muted: #6b7394;
+    --font-head: 'Barlow Condensed', sans-serif; --font-body: 'Barlow', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden; }
+
+  /* LOADING */
+  #loading-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999; gap: 1rem; }
+  .spinner { width: 48px; height: 48px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-txt { font-family: var(--font-head); font-size: 1.2rem; color: var(--muted); letter-spacing: 2px; }
+
+  /* LOGIN PAGE */
+  #login-page {
+    display: none; position: fixed; inset: 0;
+    background: var(--bg);
+    align-items: center; justify-content: center;
+    z-index: 500;
+  }
+  #login-page.show { display: flex; }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--accent);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    width: 90%;
+    max-width: 380px;
+    animation: slideIn 0.3s ease;
+  }
+  .login-logo {
+    font-family: var(--font-head);
+    font-size: 2rem; font-weight: 800;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--accent); text-align: center;
+    margin-bottom: 0.25rem;
+  }
+  .login-logo span { color: var(--text); }
+  .login-sub { text-align: center; color: var(--muted); font-size: 0.82rem; margin-bottom: 2rem; letter-spacing: 1px; text-transform: uppercase; }
+  .login-field { margin-bottom: 1rem; }
+  .login-field label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.4rem; }
+  .login-field input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-family: var(--font-body); font-size: 1rem; padding: 0.75rem 1rem; outline: none; transition: border-color 0.2s; }
+  .login-field input:focus { border-color: var(--accent); }
+  .login-btn { width: 100%; background: var(--accent); color: #111; border: none; border-radius: 8px; font-family: var(--font-head); font-size: 1.1rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 0.85rem; cursor: pointer; margin-top: 0.5rem; transition: background 0.15s; }
+  .login-btn:hover { background: #ffc14d; }
+  .login-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .login-err { background: rgba(232,69,69,0.1); border: 1px solid rgba(232,69,69,0.3); color: var(--red); border-radius: 7px; padding: 0.65rem 0.85rem; font-size: 0.85rem; margin-top: 0.75rem; display: none; text-align: center; }
+  .login-err.show { display: block; }
+
+  /* SYNC */
+  #sync-status { position: fixed; bottom: 1rem; right: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.85rem; font-size: 0.78rem; display: flex; align-items: center; gap: 0.5rem; opacity: 0; transition: opacity 0.3s; z-index: 300; }
+  #sync-status.show { opacity: 1; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .sync-ok { background: var(--green); } .sync-saving { background: var(--accent); animation: pulse 0.8s infinite; } .sync-err { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* HEADER */
+  header { background: var(--surface); border-bottom: 2px solid var(--accent); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 64px; position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: var(--font-head); font-size: 1.6rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .logo span { color: var(--text); }
+  .header-right { display: flex; align-items: center; gap: 1.5rem; }
+  .header-stats { display: flex; gap: 2rem; }
+  .hstat { text-align: center; }
+  .hstat-val { font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+  .hstat-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .user-badge {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.4rem 0.85rem;
+    font-size: 0.85rem; font-weight: 600;
+  }
+  .user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #111;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-size: 0.9rem; font-weight: 800;
+  }
+  .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 0.2rem 0.4rem; border-radius: 4px; transition: color 0.15s; }
+  .logout-btn:hover { color: var(--red); }
+  .online-badge { display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: var(--green); font-weight: 600; }
+  .online-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+
+  /* LAYOUT */
+  .app { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 64px); }
+  aside { background: var(--surface); border-right: 1px solid var(--border); padding: 1.5rem 0; position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto; }
+  .nav-section { padding: 0 1rem; margin-bottom: 1.5rem; }
+  .nav-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); padding: 0 0.5rem; margin-bottom: 0.5rem; }
+  .nav-btn { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.65rem 0.75rem; border: none; background: none; color: var(--muted); font-family: var(--font-body); font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.15s; text-align: left; }
+  .nav-btn:hover { background: var(--surface2); color: var(--text); }
+  .nav-btn.active { background: rgba(245,166,35,0.12); color: var(--accent); border-left: 3px solid var(--accent); }
+  .nav-btn .icon { font-size: 1.1rem; width: 20px; }
+  .cat-filter { padding: 0 1rem; }
+  .cat-chip { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: var(--muted); transition: all 0.15s; margin-bottom: 2px; }
+  .cat-chip:hover { background: var(--surface2); color: var(--text); }
+  .cat-chip.active { color: var(--text); background: var(--surface2); }
+  .cat-chip .badge { background: var(--border); color: var(--muted); border-radius: 10px; padding: 1px 7px; font-size: 0.72rem; font-weight: 600; }
+
+  main { padding: 1.5rem 2rem; overflow-y: auto; }
+  .page-title { font-family: var(--font-head); font-size: 2rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1.5rem; }
+  .page-title span { color: var(--accent); }
+
+  .toolbar { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .search-wrap { position: relative; flex: 1; min-width: 200px; }
+  .search-wrap .si { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  input[type=text], input[type=number], input[type=password], select, textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-family: var(--font-body); font-size: 0.9rem; padding: 0.55rem 0.75rem; outline: none; transition: border-color 0.2s; }
+  input[type=text]:focus, input[type=number]:focus, input[type=password]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .search-input { width: 100%; padding-left: 2.2rem; }
+  select { cursor: pointer; } select option { background: var(--surface2); }
+
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1.1rem; border: none; border-radius: 6px; font-family: var(--font-body); font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn-primary { background: var(--accent); color: #111; } .btn-primary:hover { background: #ffc14d; }
+  .btn-success { background: var(--green); color: #fff; } .btn-success:hover { filter: brightness(1.1); }
+  .btn-danger { background: var(--red); color: #fff; } .btn-danger:hover { filter: brightness(1.1); }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); } .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-blue { background: var(--blue); color: #fff; } .btn-blue:hover { filter: brightness(1.1); }
+  .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--surface2); border-bottom: 1px solid var(--border); }
+  th { font-family: var(--font-head); font-size: 0.78rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 0.75rem 1rem; text-align: left; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: var(--text); }
+  td { padding: 0.75rem 1rem; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .qty-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 2.2rem; padding: 0.2rem 0.5rem; border-radius: 5px; font-family: var(--font-head); font-weight: 700; font-size: 1rem; }
+  .qty-ok { background: rgba(46,204,135,0.15); color: var(--green); }
+  .qty-low { background: rgba(245,166,35,0.15); color: var(--accent); }
+  .qty-zero { background: rgba(232,69,69,0.15); color: var(--red); }
+  .cat-tag { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .loc-tag { font-size: 0.82rem; color: var(--blue); }
+  .actions-cell { display: flex; gap: 0.4rem; align-items: center; }
+  .user-tag { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); }
+  .user-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 12px; width: 90%; max-width: 520px; padding: 1.75rem; animation: slideIn 0.2s ease; max-height: 90vh; overflow-y: auto; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  .modal-title { font-family: var(--font-head); font-size: 1.4rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1.25rem; color: var(--accent); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+  .form-full { grid-column: 1 / -1; }
+  .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.35rem; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; }
+  textarea { resize: vertical; min-height: 70px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+
+  .stock-modal { max-width: 360px; }
+  .stock-item-name { font-family: var(--font-head); font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text); }
+  .current-qty { display: flex; align-items: center; justify-content: space-between; background: var(--surface2); border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 1rem; }
+  .current-qty .lbl { font-size: 0.8rem; color: var(--muted); }
+  .current-qty .val { font-family: var(--font-head); font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .qty-input { width: 80px; text-align: center; font-size: 1.1rem; }
+
+  .history-list { max-height: 300px; overflow-y: auto; }
+  .history-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .history-item:last-child { border-bottom: none; }
+  .hist-icon { font-size: 1rem; width: 24px; text-align: center; }
+  .hist-info { flex: 1; }
+  .hist-name { font-weight: 600; }
+  .hist-meta { color: var(--muted); font-size: 0.78rem; }
+  .hist-qty { font-family: var(--font-head); font-size: 1rem; font-weight: 700; }
+  .hist-plus { color: var(--green); } .hist-minus { color: var(--red); }
+
+  .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; position: relative; overflow: hidden; }
+  .dash-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .dash-card.c-orange::before { background: var(--accent); } .dash-card.c-green::before { background: var(--green); }
+  .dash-card.c-red::before { background: var(--red); } .dash-card.c-blue::before { background: var(--blue); }
+  .dc-val { font-family: var(--font-head); font-size: 2.5rem; font-weight: 800; line-height: 1; margin-bottom: 0.25rem; }
+  .c-orange .dc-val { color: var(--accent); } .c-green .dc-val { color: var(--green); }
+  .c-red .dc-val { color: var(--red); } .c-blue .dc-val { color: var(--blue); }
+  .dc-lbl { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .dc-icon { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); font-size: 2.5rem; opacity: 0.08; }
+
+  .alert-box { background: rgba(232,69,69,0.08); border: 1px solid rgba(232,69,69,0.3); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+  .alert-title { font-weight: 700; color: var(--red); margin-bottom: 0.5rem; font-size: 0.9rem; }
+  .alert-items { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .alert-chip { background: rgba(232,69,69,0.15); color: var(--red); border-radius: 5px; padding: 0.25rem 0.6rem; font-size: 0.8rem; font-weight: 600; }
+
+  .empty-state { text-align: center; padding: 3rem; color: var(--muted); }
+  .empty-state .ei { font-size: 3rem; margin-bottom: 0.75rem; }
+  .empty-state p { font-size: 0.9rem; }
+  .page { display: none; } .page.active { display: block; }
+
+  .img-upload-area { border: 2px dashed var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; background: var(--bg); }
+  .img-upload-area:hover, .img-upload-area.drag-over { border-color: var(--accent); background: rgba(245,166,35,0.05); }
+  .img-upload-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .img-upload-label { font-size: 0.85rem; color: var(--muted); pointer-events: none; }
+  .img-upload-label span { color: var(--accent); font-weight: 600; }
+  .img-preview-wrap { position: relative; width: 100%; margin-bottom: 0.5rem; }
+  .img-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+  .img-remove-btn { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.7); border: none; border-radius: 50%; width: 26px; height: 26px; color: #fff; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .img-remove-btn:hover { background: var(--red); }
+  .tbl-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+  .tbl-thumb:hover { transform: scale(1.08); border-color: var(--accent); }
+  .no-img { width: 44px; height: 44px; background: var(--surface2); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 400; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; backdrop-filter: blur(8px); }
+  .lightbox.open { display: flex; }
+  .lightbox img { max-width: 90vw; max-height: 80vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); animation: slideIn 0.2s ease; }
+  .lightbox-name { font-family: var(--font-head); font-size: 1.2rem; font-weight: 700; color: var(--text); letter-spacing: 1px; }
+  .lightbox-close { position: fixed; top: 1.5rem; right: 1.5rem; background: rgba(255,255,255,0.1); border: none; border-radius: 50%; width: 40px; height: 40px; color: #fff; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .lightbox-close:hover { background: var(--red); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .app { grid-template-columns: 1fr; }
+    aside { position: relative; height: auto; top: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem; border-right: none; border-bottom: 1px solid var(--border); }
+    .nav-section { margin-bottom: 0; } .nav-label { display: none; } .cat-filter { display: none; }
+    main { padding: 1rem; } .form-grid { grid-template-columns: 1fr; }
+    .header-stats { display: none; } .online-badge { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-txt">UČITAVANJE...</div>
+</div>
+
+<!-- LOGIN PAGE -->
+<div id="login-page">
+  <div class="login-box">
+    <div class="login-logo">📦 Skla<span>dište</span></div>
+    <div class="login-sub">Melje · Prijava</div>
+    <div class="login-field">
+      <label>Korisničko ime</label>
+      <input type="text" id="login-username" placeholder="npr. Marko" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Lozinka</label>
+      <input type="password" id="login-password" placeholder="••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Prijavi se →</button>
+    <div class="login-err" id="login-err">Pogrešno korisničko ime ili lozinka.</div>
+  </div>
+</div>
+
+<!-- SYNC -->
+<div id="sync-status">
+  <div class="sync-dot sync-ok" id="sync-dot"></div>
+  <span id="sync-txt">Sačuvano</span>
+</div>
+
+<header>
+  <div class="logo">📦 Skla<span>dište</span></div>
+  <div class="header-right">
+    <div class="online-badge"><div class="online-dot"></div>UŽIVO</div>
+    <div class="header-stats">
+      <div class="hstat"><div class="hstat-val" id="hs-total">0</div><div class="hstat-lbl">Artikala</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs-qty">0</div><div class="hstat-lbl">Ukupno kom</div></div>
+      <div class="hstat"><div class="hstat-val" id="hs-low" style="color:var(--red)">0</div><div class="hstat-lbl">Malo na stanju</div></div>
+    </div>
+    <div class="user-badge">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <span id="user-display-name">—</span>
+      <button class="logout-btn" onclick="doLogout()" title="Odjavi se">✕</button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <aside>
+    <div class="nav-section">
+      <div class="nav-label">Navigacija</div>
+      <button class="nav-btn active" onclick="showPage('dashboard',this)"><span class="icon">📊</span> Pregled</button>
+      <button class="nav-btn" onclick="showPage('inventory',this)"><span class="icon">📋</span> Inventar</button>
+      <button class="nav-btn" onclick="showPage('history',this)"><span class="icon">📜</span> Istorija</button>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Kategorije</div>
+      <div class="cat-filter" id="cat-filter">
+        <div class="cat-chip active" onclick="filterCat('sve',this)"><span>Sve</span><span class="badge">0</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="page-dashboard" class="page active">
+      <div class="page-title">Pregled <span>Skladišta</span></div>
+      <div class="dash-grid">
+        <div class="dash-card c-orange"><div class="dc-val" id="d-total">0</div><div class="dc-lbl">Ukupno artikala</div><div class="dc-icon">📦</div></div>
+        <div class="dash-card c-green"><div class="dc-val" id="d-qty">0</div><div class="dc-lbl">Komada na stanju</div><div class="dc-icon">🔢</div></div>
+        <div class="dash-card c-red"><div class="dc-val" id="d-low">0</div><div class="dc-lbl">Malo na stanju</div><div class="dc-icon">⚠️</div></div>
+        <div class="dash-card c-blue"><div class="dc-val" id="d-cats">0</div><div class="dc-lbl">Kategorija</div><div class="dc-icon">🏷️</div></div>
+      </div>
+      <div id="low-alert" style="display:none" class="alert-box">
+        <div class="alert-title">⚠️ Artikli sa malo na stanju (ispod 3 kom):</div>
+        <div class="alert-items" id="low-items"></div>
+      </div>
+      <div class="page-title" style="font-size:1.2rem;margin-bottom:1rem">Nedavna <span>aktivnost</span></div>
+      <div class="table-wrap"><div id="dash-history" class="history-list" style="padding:0.5rem 1rem;"></div></div>
+    </div>
+
+    <div id="page-inventory" class="page">
+      <div class="page-title">Inventar <span>Artikala</span></div>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <span class="si">🔍</span>
+          <input type="text" class="search-input" id="search-input" placeholder="Pretraži..." oninput="renderTable()">
+        </div>
+        <select id="filter-cat" onchange="renderTable()"><option value="">Sve kategorije</option></select>
+        <select id="filter-loc" onchange="renderTable()"><option value="">Sve lokacije</option></select>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Novi artikal</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Slika</th>
+            <th onclick="sortBy('naziv')">Naziv ↕</th>
+            <th onclick="sortBy('kategorija')">Kategorija ↕</th>
+            <th onclick="sortBy('lokacija')">Lokacija ↕</th>
+            <th onclick="sortBy('kolicina')">Količina ↕</th>
+            <th>Opis</th>
+            <th>Akcije</th>
+          </tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state" style="display:none"><div class="ei">📭</div><p>Nema artikala.</p></div>
+      </div>
+    </div>
+
+    <div id="page-history" class="page">
+      <div class="page-title">Istorija <span>Promena</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Datum/vreme</th><th>Korisnik</th><th>Artikal</th><th>Akcija</th><th>Količina</th><th>Novo stanje</th><th>Napomena</th>
+          </tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div id="history-empty" class="empty-state" style="display:none"><div class="ei">📜</div><p>Nema promena.</p></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Novi Artikal</div>
+    <div class="form-grid">
+      <div class="form-group form-full"><label>Naziv artikla *</label><input type="text" id="f-naziv" placeholder="npr. Stolica crna..."></div>
+      <div class="form-group"><label>Kategorija *</label>
+        <select id="f-kat">
+          <option value="">-- Izaberi --</option>
+          <option>Mašine i uređaji</option><option>Nameštaj - stolice</option><option>Nameštaj - stolovi</option>
+          <option>Posuđe i čaše</option><option>Tekstil</option><option>Kuhinjska oprema</option>
+          <option>Dekoracija</option><option>Električna oprema</option><option>Ostalo</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Nova kategorija</label><input type="text" id="f-kat-nova" placeholder="Upiši novu..."></div>
+      <div class="form-group"><label>Količina *</label><input type="number" id="f-kol" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Lokacija</label><input type="text" id="f-lok" placeholder="npr. Polica A-3..."></div>
+      <div class="form-group form-full"><label>Opis / napomena</label><textarea id="f-opis" placeholder="Dodatne informacije..."></textarea></div>
+      <div class="form-group form-full">
+        <label>Slika artikla</label>
+        <div id="img-preview-wrap" style="display:none" class="img-preview-wrap">
+          <img id="img-preview" class="img-preview" src="" alt="">
+          <button class="img-remove-btn" onclick="removeImage()">✕</button>
+        </div>
+        <div class="img-upload-area" id="img-upload-area">
+          <input type="file" id="f-slika" accept="image/*" onchange="handleImageUpload(event)">
+          <div class="img-upload-label">📷 <span>Klikni ili prevuci sliku</span><br><small>JPG, PNG, WEBP · max 5MB</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('add-modal')">Otkaži</button>
+      <button class="btn btn-primary" onclick="saveArticle()">💾 Sačuvaj</button>
+    </div>
+  </div>
+</div>
+
+<!-- STOCK MODAL -->
+<div class="modal-overlay" id="stock-modal">
+  <div class="modal stock-modal">
+    <div class="modal-title">Izmena stanja</div>
+    <div class="stock-item-name" id="stock-item-name"></div>
+    <div class="current-qty">
+      <div><div class="lbl">Trenutno stanje</div><div class="val" id="current-qty-val">0</div></div>
+      <div style="font-size:0.75rem;color:var(--muted)">kom</div>
+    </div>
+    <div class="form-group" style="margin-bottom:0.85rem"><label>Količina</label><input type="number" class="qty-input" id="stock-qty" min="1" value="1"></div>
+    <div class="form-group" style="margin-bottom:0"><label>Napomena (opciono)</label><input type="text" id="stock-note" placeholder="Razlog promene..."></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('stock-modal')">Otkaži</button>
+      <button class="btn btn-danger" onclick="changeStock(-1)">➖ Uzmi sa stanja</button>
+      <button class="btn btn-success" onclick="changeStock(1)">➕ Dodaj na stanje</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title" style="color:var(--red)">Brisanje artikla</div>
+    <p style="color:var(--muted);margin-bottom:1rem">Obrisati <strong id="del-name" style="color:var(--text)"></strong>?</p>
+    <p style="font-size:0.82rem;color:var(--red)">Ova akcija se ne može poništiti.</p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('del-modal')">Otkaži</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">🗑️ Obriši</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+  <div class="lightbox-name" id="lightbox-name"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ── FIREBASE CONFIG ──────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyA79HZddfC9GWX_oCerqReTgqyZPuDjr10",
+  authDomain: "skladiste-melje.firebaseapp.com",
+  projectId: "skladiste-melje",
+  storageBucket: "skladiste-melje.firebasestorage.app",
+  messagingSenderId: "727989096107",
+  appId: "1:727989096107:web:41496927f8b390ab8271ee"
+};
+// ─────────────────────────────────────────────────
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Mapiranje username → email (dodaj ovde nove korisnike)
+const USERS = {
+  'marko': 'marko@skladiste.app',
+  // 'ana': 'ana@skladiste.app',
+  // 'petar': 'petar@skladiste.app',
+};
+
+let currentUser = null;
+let items = [], historyLog = [];
+let editId = null, deleteId = null, stockItemId = null;
+let currentSort = { key: 'naziv', dir: 1 };
+let activeCat = 'sve', currentImageData = null, currentPage = 'dashboard';
+let unsubItems = null, unsubHistory = null;
+
+const CAT_COLORS = {
+  'Mašine i uređaji':'#4a9eff','Nameštaj - stolice':'#a78bfa','Nameštaj - stolovi':'#c084fc',
+  'Posuđe i čaše':'#34d399','Tekstil':'#f97316','Kuhinjska oprema':'#facc15',
+  'Dekoracija':'#f472b6','Električna oprema':'#60a5fa','Ostalo':'#94a3b8'
+};
+const cc = cat => CAT_COLORS[cat] || '#94a3b8';
+
+// ── SYNC ──────────────────────────────────────────
+let syncT;
+function showSync(type, txt) {
+  const el = document.getElementById('sync-status');
+  document.getElementById('sync-dot').className = 'sync-dot sync-' + type;
+  document.getElementById('sync-txt').textContent = txt;
+  el.classList.add('show');
+  clearTimeout(syncT);
+  if (type === 'ok') syncT = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── AUTH STATE ────────────────────────────────────
+onAuthStateChanged(auth, user => {
+  document.getElementById('loading-screen').style.display = 'none';
+  if (user) {
+    currentUser = user;
+    // Izvuci ime iz emaila (marko@skladiste.app → Marko)
+    const name = user.email.split('@')[0];
+    const displayName = name.charAt(0).toUpperCase() + name.slice(1);
+    document.getElementById('user-display-name').textContent = displayName;
+    document.getElementById('user-avatar').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('login-page').classList.remove('show');
+    startListeners();
+  } else {
+    currentUser = null;
+    stopListeners();
+    document.getElementById('login-page').classList.add('show');
+  }
+});
+
+// ── LOGIN ─────────────────────────────────────────
+window.doLogin = async () => {
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+  err.classList.remove('show');
+
+  const email = USERS[username];
+  if (!email) { err.classList.add('show'); return; }
+
+  btn.disabled = true; btn.textContent = 'Prijavljivanje...';
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch(e) {
+    err.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Prijavi se →';
+  }
+};
+
+// Enter key na login formi
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') window.doLogin(); });
+document.getElementById('login-username').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('login-password').focus(); });
+
+window.doLogout = async () => {
+  if (confirm('Da li želiš da se odjaviš?')) await signOut(auth);
+};
+
+// ── REALTIME LISTENERS ────────────────────────────
+function startListeners() {
+  unsubItems = onSnapshot(query(collection(db,'items'), orderBy('naziv')), snap => {
+    items = snap.docs.map(d => ({id:d.id,...d.data()}));
+    refreshAll();
+  }, err => { console.error(err); showSync('err','Greška veze!'); });
+
+  unsubHistory = onSnapshot(query(collection(db,'history'), orderBy('datum','desc')), snap => {
+    historyLog = snap.docs.map(d => ({id:d.id,...d.data()}));
+    if (currentPage === 'history') renderHistory();
+    if (currentPage === 'dashboard') renderDashboard();
+  });
+}
+
+function stopListeners() {
+  if (unsubItems) { unsubItems(); unsubItems = null; }
+  if (unsubHistory) { unsubHistory(); unsubHistory = null; }
+}
+
+function refreshAll() {
+  refreshCatFilter(); updateHeaderStats();
+  if (currentPage === 'inventory') renderTable();
+  if (currentPage === 'dashboard') renderDashboard();
+}
+
+// ── NAVIGATION ────────────────────────────────────
+window.showPage = (name, btn) => {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  currentPage = name;
+  if (name==='dashboard') renderDashboard();
+  if (name==='inventory') renderTable();
+  if (name==='history') renderHistory();
+};
+
+// ── CATEGORIES ────────────────────────────────────
+const getCats = () => [...new Set(items.map(i=>i.kategorija))].filter(Boolean).sort();
+
+function refreshCatFilter() {
+  const cats = getCats();
+  const cf = document.getElementById('cat-filter');
+  const fcat = document.getElementById('filter-cat');
+  cf.innerHTML = `<div class="cat-chip ${activeCat==='sve'?'active':''}" onclick="filterCat('sve',this)"><span>Sve</span><span class="badge">${items.length}</span></div>`;
+  fcat.innerHTML = '<option value="">Sve kategorije</option>';
+  cats.forEach(cat => {
+    const n = items.filter(i=>i.kategorija===cat).length;
+    cf.innerHTML += `<div class="cat-chip ${activeCat===cat?'active':''}" onclick="filterCat('${cat}',this)"><span>${cat}</span><span class="badge">${n}</span></div>`;
+    fcat.innerHTML += `<option value="${cat}">${cat}</option>`;
+  });
+  const locs = [...new Set(items.map(i=>i.lokacija).filter(Boolean))].sort();
+  const fl = document.getElementById('filter-loc'); const cv = fl.value;
+  fl.innerHTML = '<option value="">Sve lokacije</option>';
+  locs.forEach(l => { fl.innerHTML += `<option value="${l}">${l}</option>`; });
+  fl.value = cv;
+}
+
+window.filterCat = (cat, el) => {
+  activeCat = cat;
+  document.querySelectorAll('.cat-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active'); renderTable();
+};
+
+// ── TABLE ─────────────────────────────────────────
+function getFiltered() {
+  const s = document.getElementById('search-input').value.toLowerCase();
+  const cat = document.getElementById('filter-cat').value;
+  const loc = document.getElementById('filter-loc').value;
+  return items.filter(i =>
+    (!s || i.naziv.toLowerCase().includes(s) || (i.lokacija||'').toLowerCase().includes(s) || (i.opis||'').toLowerCase().includes(s)) &&
+    (!cat || i.kategorija===cat) && (!loc || i.lokacija===loc) &&
+    (activeCat==='sve' || i.kategorija===activeCat)
+  );
+}
+
+window.sortBy = key => {
+  if (currentSort.key===key) currentSort.dir*=-1; else {currentSort.key=key;currentSort.dir=1;}
+  renderTable();
+};
+
+function renderTable() {
+  const filtered = getFiltered();
+  filtered.sort((a,b) => {
+    const av=a[currentSort.key]||'', bv=b[currentSort.key]||'';
+    return (typeof av==='number' ? (av-bv) : av.toString().localeCompare(bv.toString())) * currentSort.dir;
+  });
+  const tbody = document.getElementById('table-body');
+  const empty = document.getElementById('empty-state');
+  if (!filtered.length) { tbody.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display='none';
+  tbody.innerHTML = filtered.map(item => {
+    const qc = item.kolicina===0?'qty-zero':item.kolicina<3?'qty-low':'qty-ok';
+    const color = cc(item.kategorija);
+    const imgCell = item.slika
+      ? `<img class="tbl-thumb" src="${item.slika}" alt="${item.naziv}" onclick="openLightbox('${item.id}')">`
+      : `<div class="no-img">📦</div>`;
+    return `<tr>
+      <td>${imgCell}</td>
+      <td><strong>${item.naziv}</strong></td>
+      <td><span class="cat-tag" style="background:${color}22;color:${color}">${item.kategorija||'—'}</span></td>
+      <td><span class="loc-tag">${item.lokacija||'—'}</span></td>
+      <td><span class="qty-badge ${qc}">${item.kolicina}</span></td>
+      <td style="max-width:160px;font-size:0.82rem;color:var(--muted)">${item.opis||'—'}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-success btn-sm" onclick="openStockModal('${item.id}')">📦 Stanje</button>
+        <button class="btn btn-blue btn-sm" onclick="openEditModal('${item.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${item.id}')">🗑️</button>
+      </div></td></tr>`;
+  }).join('');
+  updateHeaderStats();
+}
+
+// ── DASHBOARD ─────────────────────────────────────
+function renderDashboard() {
+  const total=items.length, qty=items.reduce((s,i)=>s+(i.kolicina||0),0), low=items.filter(i=>i.kolicina<3).length, cats=getCats().length;
+  ['d-total','hs-total'].forEach(id=>document.getElementById(id).textContent=total);
+  ['d-qty','hs-qty'].forEach(id=>document.getElementById(id).textContent=qty);
+  ['d-low','hs-low'].forEach(id=>document.getElementById(id).textContent=low);
+  document.getElementById('d-cats').textContent=cats;
+  const lowItems=items.filter(i=>i.kolicina<3);
+  const alertEl=document.getElementById('low-alert');
+  if (lowItems.length) { alertEl.style.display=''; document.getElementById('low-items').innerHTML=lowItems.map(i=>`<span class="alert-chip">${i.naziv} (${i.kolicina})</span>`).join(''); }
+  else alertEl.style.display='none';
+  const dh=document.getElementById('dash-history');
+  if (!historyLog.length) { dh.innerHTML='<div class="empty-state"><div class="ei">📜</div><p>Nema aktivnosti.</p></div>'; return; }
+  dh.innerHTML=historyLog.slice(0,10).map(h=>{
+    const p=h.tip==='dodato';
+    return `<div class="history-item">
+      <div class="hist-icon">${p?'➕':'➖'}</div>
+      <div class="hist-info">
+        <div class="hist-name">${h.naziv} <span style="color:var(--accent);font-size:0.8rem">· ${h.korisnik||'?'}</span></div>
+        <div class="hist-meta">${h.datumStr||''}${h.napomena?' · '+h.napomena:''}</div>
+      </div>
+      <div class="hist-qty ${p?'hist-plus':'hist-minus'}">${p?'+':'-'}${h.kolicina} → ${h.novoStanje}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateHeaderStats() {
+  document.getElementById('hs-total').textContent=items.length;
+  document.getElementById('hs-qty').textContent=items.reduce((s,i)=>s+(i.kolicina||0),0);
+  document.getElementById('hs-low').textContent=items.filter(i=>i.kolicina<3).length;
+}
+
+// ── HISTORY ───────────────────────────────────────
+function renderHistory() {
+  const tbody=document.getElementById('history-body'), empty=document.getElementById('history-empty');
+  if (!historyLog.length) { tbody.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display='none';
+  tbody.innerHTML=historyLog.map(h=>{
+    const p=h.tip==='dodato';
+    return `<tr>
+      <td style="font-size:0.82rem;color:var(--muted)">${h.datumStr||''}</td>
+      <td><span style="background:rgba(245,166,35,0.12);color:var(--accent);padding:0.2rem 0.5rem;border-radius:5px;font-size:0.82rem;font-weight:600">${h.korisnik||'?'}</span></td>
+      <td><strong>${h.naziv}</strong></td>
+      <td><span class="cat-tag" style="background:${p?'rgba(46,204,135,0.15)':'rgba(232,69,69,0.15)'};color:${p?'var(--green)':'var(--red)'}">${p?'➕ Dodato':'➖ Uzeto'}</span></td>
+      <td style="font-family:var(--font-head);font-size:1rem;font-weight:700;color:${p?'var(--green)':'var(--red)'}">${p?'+':'-'}${h.kolicina}</td>
+      <td style="font-family:var(--font-head);font-size:1rem;font-weight:700;color:var(--accent)">${h.novoStanje}</td>
+      <td style="font-size:0.82rem;color:var(--muted)">${h.napomena||'—'}</td></tr>`;
+  }).join('');
+}
+
+// ── ADD / EDIT ────────────────────────────────────
+window.openAddModal = () => {
+  editId=null;
+  document.getElementById('modal-title').textContent='Novi Artikal';
+  ['f-naziv','f-kol','f-lok','f-opis','f-kat-nova'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-kat').value='';
+  currentImageData=null; setImagePreview(null);
+  openModal('add-modal');
+};
+
+window.openEditModal = id => {
+  const item=items.find(i=>i.id===id); if (!item) return;
+  editId=id;
+  document.getElementById('modal-title').textContent='Uredi Artikal';
+  document.getElementById('f-naziv').value=item.naziv;
+  document.getElementById('f-kol').value=item.kolicina;
+  document.getElementById('f-lok').value=item.lokacija||'';
+  document.getElementById('f-opis').value=item.opis||'';
+  document.getElementById('f-kat-nova').value='';
+  const sel=document.getElementById('f-kat'); sel.value=item.kategorija||'';
+  if (!sel.value && item.kategorija) { const o=document.createElement('option'); o.value=o.textContent=item.kategorija; sel.appendChild(o); sel.value=item.kategorija; }
+  currentImageData=item.slika||null; setImagePreview(item.slika||null);
+  openModal('add-modal');
+};
+
+window.saveArticle = async () => {
+  const naziv=document.getElementById('f-naziv').value.trim();
+  const katNova=document.getElementById('f-kat-nova').value.trim();
+  const kat=katNova||document.getElementById('f-kat').value;
+  const kol=parseInt(document.getElementById('f-kol').value)||0;
+  const lok=document.getElementById('f-lok').value.trim();
+  const opis=document.getElementById('f-opis').value.trim();
+  if (!naziv) { alert('Unesite naziv!'); return; }
+  if (!kat) { alert('Izaberite kategoriju!'); return; }
+  showSync('saving','Čuvanje...');
+  try {
+    const data={naziv,kategorija:kat,kolicina:kol,lokacija:lok,opis,slika:currentImageData||null};
+    if (editId) await updateDoc(doc(db,'items',editId),data);
+    else await addDoc(collection(db,'items'),data);
+    showSync('ok','Sačuvano ✓'); closeModal('add-modal');
+  } catch(e) { console.error(e); showSync('err','Greška!'); }
+};
+
+// ── STOCK ─────────────────────────────────────────
+window.openStockModal = id => {
+  stockItemId=id; const item=items.find(i=>i.id===id);
+  document.getElementById('stock-item-name').textContent=item.naziv;
+  document.getElementById('current-qty-val').textContent=item.kolicina;
+  document.getElementById('stock-qty').value=1;
+  document.getElementById('stock-note').value='';
+  openModal('stock-modal');
+};
+
+window.changeStock = async dir => {
+  const item=items.find(i=>i.id===stockItemId);
+  const qty=parseInt(document.getElementById('stock-qty').value)||1;
+  const note=document.getElementById('stock-note').value.trim();
+  if (dir===-1 && item.kolicina<qty) { alert(`Nema dovoljno! Trenutno: ${item.kolicina}`); return; }
+  const newQty=item.kolicina+dir*qty;
+
+  // Izvuci ime korisnika
+  const email = currentUser?.email || '';
+  const name = email.split('@')[0];
+  const korisnik = name.charAt(0).toUpperCase() + name.slice(1);
+
+  showSync('saving','Čuvanje...');
+  try {
+    await updateDoc(doc(db,'items',item.id),{kolicina:newQty});
+    await addDoc(collection(db,'history'),{
+      naziv:item.naziv, tip:dir===1?'dodato':'uzeto', kolicina:qty,
+      novoStanje:newQty, napomena:note, korisnik,
+      datumStr:new Date().toLocaleString('sr-RS'), datum:serverTimestamp()
+    });
+    showSync('ok','Sačuvano ✓'); closeModal('stock-modal');
+  } catch(e) { console.error(e); showSync('err','Greška!'); }
+};
+
+// ── DELETE ────────────────────────────────────────
+window.openDeleteModal = id => {
+  deleteId=id; document.getElementById('del-name').textContent=items.find(i=>i.id===id).naziv;
+  openModal('del-modal');
+};
+window.confirmDelete = async () => {
+  showSync('saving','Brisanje...');
+  try { await deleteDoc(doc(db,'items',deleteId)); showSync('ok','Obrisano ✓'); closeModal('del-modal'); }
+  catch(e) { console.error(e); showSync('err','Greška!'); }
+};
+
+// ── MODALS ────────────────────────────────────────
+window.openModal = id => document.getElementById(id).classList.add('open');
+window.closeModal = id => document.getElementById(id).classList.remove('open');
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }));
+
+// ── IMAGE ─────────────────────────────────────────
+window.handleImageUpload = event => {
+  const file=event.target.files[0]; if (!file) return;
+  if (file.size>5*1024*1024) { alert('Max 5MB!'); return; }
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas'); const MAX=800;
+      let w=img.width,h=img.height;
+      if(w>h&&w>MAX){h=h*MAX/w;w=MAX;} else if(h>MAX){w=w*MAX/h;h=MAX;}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      currentImageData=canvas.toDataURL('image/jpeg',0.82);
+      setImagePreview(currentImageData);
+    }; img.src=e.target.result;
+  }; reader.readAsDataURL(file);
+};
+function setImagePreview(src) {
+  const wrap=document.getElementById('img-preview-wrap'), area=document.getElementById('img-upload-area');
+  if (src) { document.getElementById('img-preview').src=src; wrap.style.display=''; area.style.display='none'; }
+  else { wrap.style.display='none'; area.style.display=''; document.getElementById('f-slika').value=''; currentImageData=null; }
+}
+window.removeImage=()=>{ currentImageData=null; setImagePreview(null); };
+
+// ── LIGHTBOX ──────────────────────────────────────
+window.openLightbox=id=>{
+  const item=items.find(i=>i.id===id); if(!item||!item.slika) return;
+  document.getElementById('lightbox-img').src=item.slika;
+  document.getElementById('lightbox-name').textContent=item.naziv;
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow='hidden';
+};
+window.closeLightbox=()=>{ document.getElementById('lightbox').classList.remove('open'); document.body.style.overflow=''; };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') { window.closeLightbox(); window.closeModal('add-modal'); } });
+
+// ── DRAG & DROP ───────────────────────────────────
+window.renderTable = renderTable;
+const area=document.getElementById('img-upload-area');
+area.addEventListener('dragover',e=>{e.preventDefault();area.classList.add('drag-over');});
+area.addEventListener('dragleave',()=>area.classList.remove('drag-over'));
+area.addEventListener('drop',e=>{ e.preventDefault(); area.classList.remove('drag-over'); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith('image/')) window.handleImageUpload({target:{files:[f]}}); });
+</script>
+</body>
+</html>

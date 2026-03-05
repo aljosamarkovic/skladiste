@@ -1,0 +1,22 @@
+{
+  "name": "Skladište Melje",
+  "short_name": "Skladište",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FEFEFA",
+  "theme_color": "#004428",
+  "description": "Upravljanje skladištem",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
